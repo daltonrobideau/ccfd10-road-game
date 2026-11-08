@@ -23,7 +23,7 @@ async function lookupLocation(loc){
   if(loc.name==='Station 106'){
     const camp=await lookupLocation(LOCATIONS.find(l=>l.name==='Campers Hideaway'));
     // Corrected Station 106 location from user screenshots: the previous offset placed the orange answer northeast of the actual blue station dot.
-    return geoCache[loc.name]=[camp[0]-0.0032,camp[1]-0.0032];
+    return geoCache[loc.name]=[camp[0]-0.0042,camp[1]-0.0046];
   }
   if(loc.name==='Cedar Creek Boat Launch')return geoCache[loc.name]=[45+56/60+9.5/3600,-(122+37/60+12.5/3600)];
   let addr=loc.address;
