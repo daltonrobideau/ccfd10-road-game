@@ -131,10 +131,10 @@ async function loadUnlabeledRoads(){
 }
 // Campers Hideaway: manually traced acceptance area from user's annotated screenshot.
 // Reference marker at screenshot pixel (565,767); Station 106 blue marker at (382,928).
-// The 0.0016-degree separation used by the existing Station 106 answer calibrates screenshot scale.
+// Calibrated from the user's precise saved GPS pins for Campers Hideaway (orange) and Station 106 (blue).
 const CAMPERS_OUTLINE_PIXELS=[[170,473],[80,501],[44,574],[40,755],[57,829],[108,873],[209,887],[300,850],[335,821],[299,956],[402,817],[438,805],[482,823],[491,983],[815,992],[939,936],[991,864],[1004,735],[1002,594],[939,495],[836,431],[741,405],[644,419],[536,433],[431,439],[331,465]];
 function campgroundPolygon(center){
-  return CAMPERS_OUTLINE_PIXELS.map(([x,y])=>[center[0]-(y-767)*(.0016/161),center[1]+(x-565)*(.0016/183)]);
+  return CAMPERS_OUTLINE_PIXELS.map(([x,y])=>[center[0]-(y-767)*((45.961962047015-45.956389566548935)/161),center[1]+(x-565)*((-122.412360041594)-(-122.42038607597352))/183]);
 }
 function insidePolygon(point,polygon){
   const x=point[1],y=point[0];let inside=false;
