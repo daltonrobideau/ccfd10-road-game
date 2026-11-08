@@ -10,7 +10,7 @@ const tierMap=new Map(ranked.map((r,i)=>[r.name,i<Math.ceil(ranked.length/3)?'ea
 const intermediateExceptions=new Set(['GM1000 Rd','LR2000 Rd','IP10','IP10 Rd']);
 function tier(r){return intermediateExceptions.has(r.name)?'medium':codedRoad(r)?'master':tierMap.get(r.name)}
 function eligibleRoad(r,t){return t==='master'||(t==='hard'&&(!codedRoad(r)||intermediateExceptions.has(r.name)))||tier(r)==='easy'||(t==='medium'&&tier(r)==='medium')}
-function updateDifficulty(){let t=$('difficulty').value;if(t==='locations'){$('difficultyInfo').textContent='Locations use live address geocoding, satellite imagery, unlabeled road lines, and the district boundary. A location may be skipped if its address cannot be resolved.';$('locationSetup').style.display='none';$('quizTitle').textContent='Find this location';$('totalLabel').textContent='Locations ready';$('practicedLabel').textContent='Unique locations practiced';$('remainingLabel').textContent='Locations remaining';$('search').placeholder='Search locations';return}$('locationSetup').style.display='none';$('quizTitle').textContent='Find this road';$('totalLabel').textContent='Named roads';$('practicedLabel').textContent='Unique roads practiced';$('remainingLabel').textContent='Roads remaining';$('search').placeholder='Search road names';let count=DATA.roads.filter(r=>eligibleRoad(r,t)).length;$('difficultyInfo').textContent=({easy:'Main longer roads.',medium:'Includes Easy plus intermediate roads.',hard:'All regular named roads, excluding LR, GM, BH, G and HR coded roads.',master:'All named roads, including LR, GM, BH, G and HR coded roads.'})[t]+' '+count+' roads in this level.'}
+function updateDifficulty(){let t=$('difficulty').value;if(t==='locations'){$('difficultyInfo').textContent='Locations use satellite imagery with county road and district-boundary overlays. A location may be skipped if its address cannot be resolved.';$('locationSetup').style.display='none';$('quizTitle').textContent='Find this location';$('totalLabel').textContent='Locations ready';$('practicedLabel').textContent='Unique locations practiced';$('remainingLabel').textContent='Locations remaining';$('search').placeholder='Search locations';return}$('locationSetup').style.display='none';$('quizTitle').textContent='Find this road';$('totalLabel').textContent='Named roads';$('practicedLabel').textContent='Unique roads practiced';$('remainingLabel').textContent='Roads remaining';$('search').placeholder='Search road names';let count=DATA.roads.filter(r=>eligibleRoad(r,t)).length;$('difficultyInfo').textContent=({easy:'Main longer roads.',medium:'Includes Easy plus intermediate roads.',hard:'All regular named roads, excluding LR, GM, BH, G and HR coded roads.',master:'All named roads, including LR, GM, BH, G and HR coded roads.'})[t]+' '+count+' roads in this level.'}
 function pick(){if($('difficulty').value==='locations'){if(false&&placing){let next=LOCATIONS.find(l=>l.name===placing);if(!next){placing=null;$('placeStatus').textContent='All locations have pins. Ready to practice!'}else{current=null;answered=false;guess=null;$('question').textContent=placing;$('feedback').textContent='Tap the CORRECT location on the map to save it (not a scored guess).';$('distance').textContent='—';$('next').textContent='Skip this location →';$('placeStatus').textContent='Mapping: '+Object.keys(locPins).length+' of '+LOCATIONS.length+' saved';draw();return}}let mode=$('mode').value;let choices=LOCATIONS.filter(l=>locPins[l.name]).filter(l=>mode==='missed'?locMissed.has(l.name):mode==='new'?!locPracticed.has(l.name):true);if(!choices.length){current=null;answered=false;guess=null;$('question').textContent='No mapped locations available';$('feedback').textContent='Use Location map setup to place pins, or change practice mode.';draw();return}if(!queue.length){queue=choices.map(l=>l.name);for(let i=queue.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[queue[i],queue[j]]=[queue[j],queue[i]]}}let name=queue.shift();current=LOCATIONS.find(l=>l.name===name);answered=false;guess=null;$('question').textContent=name;$('feedback').textContent='Tap the location on the map.';$('distance').textContent='—';$('next').textContent='Skip / Next location →';draw();prepareGeoQuestion();return}let mode=$('mode').value;let selected=$('difficulty').value;let eligible=DATA.roads.filter(r=>eligibleRoad(r,selected));let choices=eligible.filter(r=>mode==='missed'?missed.has(r.name):mode==='new'?!practiced.has(r.name):true);if(!choices.length){$('question').textContent='No roads available';$('feedback').textContent='No matching roads in this difficulty and practice mode. Try another selection.';current=null;draw();return}if(!queue.length){queue=choices.map(r=>r.name);for(let i=queue.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[queue[i],queue[j]]=[queue[j],queue[i]]}}let name=queue.shift();current=DATA.roads.find(r=>r.name===name);answered=false;guess=null;$('question').textContent=name;$('feedback').textContent='Click the map to make your guess.';$('distance').textContent='—';$('next').textContent='Skip / Next road →';draw()}
 
 // Location mode uses real-world WGS84 coordinates, not approximations from road numbers.
@@ -62,38 +62,36 @@ function showGeoMap(){
   }else if(active){$('feedback').textContent='Map tiles are unavailable. Check your internet connection and refresh.'}
 }
 let districtBoundary=null,roadLines=null,roadsLoaded=false;
-async function loadDistrictBoundary(){
-  if(!geoMap||districtBoundary)return;
-  const endpoint='https://gis.clark.wa.gov/arcgisfed/rest/services/ClarkView_Public/FireDistrictBoundary/MapServer/0/query';
-  try{
-    const url=endpoint+'?'+new URLSearchParams({where:"FireDistrict = 'Clark Fire District 10'",outFields:'FireDistrict',outSR:'4326',returnGeometry:'true',f:'geojson'});
-    const res=await fetch(url);if(!res.ok)throw Error('District boundary HTTP '+res.status);
-    const data=await res.json();if(!data.features?.length)throw Error('No matching district');
-    districtBoundary=L.geoJSON(data,{style:{color:'#ffae43',weight:5,opacity:1,fillOpacity:0,interactive:false}}).addTo(geoMap);
-    districtBoundary.bringToFront();
-  }catch(e){console.warn('District boundary unavailable',e)}
+const countyMapService='https://gis.clark.wa.gov/arcgisfed2/rest/services/MapsOnline/AdminBoundaries/MapServer';
+function countyLayerTiles(layerId){
+  const Layer=L.GridLayer.extend({
+    createTile:function(coords,done){
+      const tile=document.createElement('img');
+      tile.alt='';tile.setAttribute('role','presentation');
+      const nw=L.point(coords.x*256,coords.y*256),se=nw.add([256,256]);
+      const a=this._map.unproject(nw,coords.z),b=this._map.unproject(se,coords.z);
+      const p=L.CRS.EPSG3857.project(a),q=L.CRS.EPSG3857.project(b);
+      const bbox=[p.x,q.y,q.x,p.y].join(',');
+      const params=new URLSearchParams({bbox,bboxSR:'3857',imageSR:'3857',size:'256,256',format:'png32',transparent:'true',layers:'show:'+layerId,f:'image',dpi:'96'});
+      tile.onload=()=>done(null,tile);tile.onerror=()=>done(new Error('County GIS tile unavailable'),tile);
+      tile.src=countyMapService+'/export?'+params.toString();
+      return tile;
+    }
+  });
+  return new Layer({tileSize:256,maxZoom:19,opacity:1,updateWhenIdle:true});
 }
-async function loadUnlabeledRoads(){
+function loadDistrictBoundary(){
+  if(!geoMap||districtBoundary)return;
+  // Official county GIS layer 53 contains fire district outlines.
+  districtBoundary=countyLayerTiles(53).addTo(geoMap);
+  districtBoundary.setZIndex(550);
+}
+function loadUnlabeledRoads(){
   if(!geoMap||roadsLoaded)return;
   roadsLoaded=true;
-  // Clark County GIS supplies actual road geometry; no road-name labels are drawn.
-  const endpoint='https://gis.clark.wa.gov/arcgisfed2/rest/services/MapsOnline/AdminBoundaries/MapServer/81/query';
-  try{
-    const b=geoMap.getBounds();
-    const extent=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];
-    const params=new URLSearchParams({where:'1=1',geometry:extent.join(','),geometryType:'esriGeometryEnvelope',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'OBJECTID',outSR:'4326',returnGeometry:'true',f:'geojson',resultRecordCount:'2000'});
-    const response=await fetch(endpoint+'?'+params);
-    if(!response.ok)throw Error('County road request failed');
-    const data=await response.json();
-    if(!data.features?.length)throw Error('No county road features');
-    roadLines=L.geoJSON(data,{style:{color:'#f9f5db',weight:2,opacity:.9,interactive:false}}).addTo(geoMap);
-    if(districtBoundary)districtBoundary.bringToFront();
-  }catch(e){
-    console.warn('County road overlay failed; using transportation reference map',e);
-    // Reliable fallback with road labels, rather than leaving firefighters without any road reference.
-    roadLines=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.9,attribution:'Roads &copy; Esri'}).addTo(geoMap);
-    if(districtBoundary)districtBoundary.bringToFront();
-  }
+  // County GIS layer 81 renders roads directly, without a separate name-label layer.
+  roadLines=countyLayerTiles(81).addTo(geoMap);
+  roadLines.setZIndex(450);
 }
 function geoDistance(a,b){
   const R=6371000,toRad=Math.PI/180,dLat=(b[0]-a[0])*toRad,dLon=(b[1]-a[1])*toRad;
