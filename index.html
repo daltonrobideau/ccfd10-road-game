@@ -58,6 +58,20 @@ async function loadCleanStreetBasemap(){
     for(const layer of style.layers||[]){
       // Remove every text/icon symbol layer, including road numbers, businesses, stations, and address labels.
       if(layer.type==='symbol')layer.layout={...(layer.layout||{}),visibility:'none'};
+      // Make minor/unnamed access roads quieter, and named/through roads easier to trace.
+      // Keep all road labels hidden for the training game.
+      if(layer.type==='line' && /road|street|highway|transportation|motorway|trunk|primary|secondary|tertiary|residential|service/i.test(layer.id||'')){
+        const paint=layer.paint||{};
+        const original=paint['line-width']??1;
+        const id=(layer.id||'').toLowerCase();
+        const minor=/service|minor|residential|living|track|path|pedestrian|footway|driveway|parking/.test(id);
+        const major=/motorway|trunk|primary|secondary|tertiary|major/.test(id);
+        const factor=minor?0.56:major?1.38:1.15;
+        paint['line-width']=['*',typeof original==='number'?original:original,factor];
+        if(minor){paint['line-opacity']=0.57;}
+        else if(major){paint['line-opacity']=0.98;}
+        layer.paint=paint;
+      }
     }
     const vector=L.maplibreGL({style,attribution:'&copy; OpenStreetMap contributors'}).addTo(geoMap);
     vector.getMaplibreMap().on('load',()=>{if(districtBoundary)districtBoundary.bringToFront()});
