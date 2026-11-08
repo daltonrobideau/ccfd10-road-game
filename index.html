@@ -127,6 +127,21 @@ async function loadUnlabeledRoads(){
   roadsLoaded=false;
   console.warn('Road overlay unavailable; no labeled fallback will be used');
 }
+// Campers Hideaway: manually traced acceptance area from user's annotated screenshot.
+// Reference marker at screenshot pixel (565,767); Station 106 blue marker at (382,928).
+// The 0.0016-degree separation used by the existing Station 106 answer calibrates screenshot scale.
+const CAMPERS_OUTLINE_PIXELS=[[170,473],[80,501],[44,574],[40,755],[57,829],[108,873],[209,887],[300,850],[335,821],[299,956],[402,817],[438,805],[482,823],[491,983],[815,992],[939,936],[991,864],[1004,735],[1002,594],[939,495],[836,431],[741,405],[644,419],[536,433],[431,439],[331,465]];
+function campgroundPolygon(center){
+  return CAMPERS_OUTLINE_PIXELS.map(([x,y])=>[center[0]-(y-767)*(.0016/161),center[1]+(x-565)*(.0016/183)]);
+}
+function insidePolygon(point,polygon){
+  const x=point[1],y=point[0];let inside=false;
+  for(let i=0,j=polygon.length-1;i<polygon.length;j=i++){
+    const xi=polygon[i][1],yi=polygon[i][0],xj=polygon[j][1],yj=polygon[j][0];
+    if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
 function geoDistance(a,b){
   const R=6371000,toRad=Math.PI/180,dLat=(b[0]-a[0])*toRad,dLon=(b[1]-a[1])*toRad;
   const h=Math.sin(dLat/2)**2+Math.cos(a[0]*toRad)*Math.cos(b[0]*toRad)*Math.sin(dLon/2)**2;
@@ -153,7 +168,7 @@ async function prepareGeoQuestion(){
   }finally{geoLoading=false}
 }
 
-function answer(p){if(false&&placing){let placed=placing;locPins[placed]=p;placing=LOCATIONS.find(l=>!locPins[l.name])?.name||null;saveLoc();updateDifficulty();update();pick();$('placeStatus').textContent='✓ Pin saved for '+placed+'. Choose Start location quiz whenever you are ready to practice.';return}if(!current||answered)return;if($('difficulty').value==='locations'){if(geoLoading||!geoCache[current.name]||!geoMap)return;answered=true;guess=p;locAttempts++;locPracticed.add(current.name);let feet=geoDistance(p,geoCache[current.name]);geoGuess=L.circleMarker(p,{radius:7,color:'#1678d3',fillOpacity:.9}).addTo(geoMap);geoCorrect=L.circleMarker(geoCache[current.name],{radius:9,color:'#f28d39',fillOpacity:.9}).addTo(geoMap);let camper=current.name==='Campers Hideaway';let ok=feet<=(camper?3000:500);if(ok){locCorrect++;locMissed.delete(current.name)}else locMissed.add(current.name);$('distance').textContent=feet>=5280?(feet/5280).toFixed(2)+' mi':Math.round(feet)+' ft';$('feedback').textContent=(ok?(camper?'✓ CORRECT! Within the Campers Hideaway acceptance area. ':'✓ CORRECT! Within 500 feet. '):(camper?'✗ INCORRECT. Outside the Campers Hideaway acceptance area. ':'✗ INCORRECT. More than 500 feet away. '))+ 'Orange marks the mapped location for '+current.name+'.';$('next').textContent='Next location →';saveLoc();update();draw();return}answered=true;guess=p;attempts++;practiced.add(current.name);let d=distRoad(p,current),meters=d/((W/((.32089152582446)*Math.cos(45.92*Math.PI/180)))*Math.cos(45.92*Math.PI/180)*111320); // overwritten below using actual map scale
+function answer(p){if(false&&placing){let placed=placing;locPins[placed]=p;placing=LOCATIONS.find(l=>!locPins[l.name])?.name||null;saveLoc();updateDifficulty();update();pick();$('placeStatus').textContent='✓ Pin saved for '+placed+'. Choose Start location quiz whenever you are ready to practice.';return}if(!current||answered)return;if($('difficulty').value==='locations'){if(geoLoading||!geoCache[current.name]||!geoMap)return;answered=true;guess=p;locAttempts++;locPracticed.add(current.name);let feet=geoDistance(p,geoCache[current.name]);geoGuess=L.circleMarker(p,{radius:7,color:'#1678d3',fillOpacity:.9}).addTo(geoMap);geoCorrect=L.circleMarker(geoCache[current.name],{radius:9,color:'#f28d39',fillOpacity:.9}).addTo(geoMap);let camper=current.name==='Campers Hideaway',pulp=current.name==='Northwest Pulp and Paper';let ok=camper?insidePolygon(p,campgroundPolygon(geoCache[current.name])):(pulp?feet<=1800:feet<=500);if(ok){locCorrect++;locMissed.delete(current.name)}else locMissed.add(current.name);$('distance').textContent=feet>=5280?(feet/5280).toFixed(2)+' mi':Math.round(feet)+' ft';$('feedback').textContent=(ok?(camper?'✓ CORRECT! Within Campers Hideaway. ':(pulp?'✓ CORRECT! Within the Northwest Pulp and Paper area. ':'✓ CORRECT! Within 500 feet. ')):(camper?'✗ INCORRECT. Outside the Campers Hideaway area. ':(pulp?'✗ INCORRECT. Outside the Northwest Pulp and Paper area. ':'✗ INCORRECT. More than 500 feet away. ')))+ 'Orange marks the mapped location for '+current.name+'.';$('next').textContent='Next location →';saveLoc();update();draw();return}answered=true;guess=p;attempts++;practiced.add(current.name);let d=distRoad(p,current),meters=d/((W/((.32089152582446)*Math.cos(45.92*Math.PI/180)))*Math.cos(45.92*Math.PI/180)*111320); // overwritten below using actual map scale
 meters=d/((W-70)/((.32089152582446)*Math.cos(45.92*Math.PI/180))*Math.cos(45.92*Math.PI/180)*111320); // conservative approximate
 // pixel to meters derived from the embedded coordinate projection's original bounding box
 meters=d*38;let feet=meters*3.28084;let ok=feet<=500;if(ok){correct++;missed.delete(current.name)}else missed.add(current.name);$('distance').textContent=feet>=5280?(feet/5280).toFixed(2)+' mi':Math.round(feet)+' ft';$('feedback').textContent=(ok?'✓ CORRECT! Within 500 feet. ':'✗ INCORRECT. More than 500 feet away. ')+ 'Orange shows the correct road: '+current.name+'.';$('next').textContent='Next road →';save();update();draw()}
