@@ -50,7 +50,7 @@ function showGeoMap(){
   if(active&&typeof L!=='undefined'){
     if(!geoMap){
       geoMap=L.map('geoMap',{zoomControl:true}).setView([45.91,-122.55],11);
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri, Maxar, Earthstar Geographics, and contributors'}).addTo(geoMap);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'Tiles &copy; Esri, Maxar, Earthstar Geographics, and contributors'}).addTo(geoMap);L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.9,attribution:'Roads &copy; Esri'}).addTo(geoMap);
       geoMap.on('click',e=>answer([e.latlng.lat,e.latlng.lng]));
     }
     setTimeout(()=>geoMap.invalidateSize(),100);
