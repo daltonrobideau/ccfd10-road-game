@@ -22,8 +22,8 @@ async function lookupLocation(loc){
   if(geoCache[loc.name])return geoCache[loc.name];
   if(loc.name==='Station 106'){
     const camp=await lookupLocation(LOCATIONS.find(l=>l.name==='Campers Hideaway'));
-    // Provisional correction from the user's screenshot: Station 106 is southwest of the campground marker.
-    return geoCache[loc.name]=[camp[0]-0.0016,camp[1]-0.0016];
+    // Corrected Station 106 location from user screenshots: the previous offset placed the orange answer northeast of the actual blue station dot.
+    return geoCache[loc.name]=[camp[0]-0.0032,camp[1]-0.0032];
   }
   if(loc.name==='Cedar Creek Boat Launch')return geoCache[loc.name]=[45+56/60+9.5/3600,-(122+37/60+12.5/3600)];
   let addr=loc.address;
