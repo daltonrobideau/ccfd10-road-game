@@ -64,31 +64,36 @@ function showGeoMap(){
 let districtBoundary=null,roadLines=null,roadsLoaded=false;
 async function loadDistrictBoundary(){
   if(!geoMap||districtBoundary)return;
-  const endpoint='https://gis.clark.wa.gov/arcgisfed2/rest/services/MapsOnline/AdminBoundaries/MapServer/54/query';
+  const endpoint='https://gis.clark.wa.gov/arcgisfed/rest/services/ClarkView_Public/FireDistrictBoundary/MapServer/0/query';
   try{
     const url=endpoint+'?'+new URLSearchParams({where:"FireDistrict = 'Clark Fire District 10'",outFields:'FireDistrict',outSR:'4326',returnGeometry:'true',f:'geojson'});
     const res=await fetch(url);if(!res.ok)throw Error('District boundary HTTP '+res.status);
     const data=await res.json();if(!data.features?.length)throw Error('No matching district');
-    districtBoundary=L.geoJSON(data,{style:{color:'#ffae43',weight:4,opacity:1,fill:false,interactive:false}}).addTo(geoMap);
+    districtBoundary=L.geoJSON(data,{style:{color:'#ffae43',weight:5,opacity:1,fillOpacity:0,interactive:false}}).addTo(geoMap);
     districtBoundary.bringToFront();
   }catch(e){console.warn('District boundary unavailable',e)}
 }
 async function loadUnlabeledRoads(){
-  if(!geoMap||roadsLoaded)return;roadsLoaded=true;
-  const bounds=[45.72,-122.84,46.08,-122.26];
-  const query='[out:json][timeout:60];(way["highway"]["highway"!~"footway|path|track|cycleway|steps|pedestrian|service|construction|proposed"]('+bounds.join(',')+'););out geom;';
+  if(!geoMap||roadsLoaded)return;
+  roadsLoaded=true;
+  // Clark County GIS supplies actual road geometry; no road-name labels are drawn.
+  const endpoint='https://gis.clark.wa.gov/arcgisfed2/rest/services/MapsOnline/AdminBoundaries/MapServer/81/query';
   try{
-    const res=await fetch('https://overpass.kumi.systems/api/interpreter',{method:'POST',body:new URLSearchParams({data:query})});
-    if(!res.ok)throw Error('Road geometry HTTP '+res.status);
-    const data=await res.json();
-    roadLines=L.layerGroup().addTo(geoMap);
-    for(const w of data.elements||[]){
-      if(!w.geometry||w.geometry.length<2)continue;
-      const major=/motorway|trunk|primary|secondary/.test(w.tags?.highway||'');
-      L.polyline(w.geometry.map(p=>[p.lat,p.lon]),{color:major?'#ffe58b':'#f5f7fb',weight:major?3:1.8,opacity:.88,interactive:false}).addTo(roadLines);
-    }
+    const b=geoMap.getBounds();
+    const extent=[b.getWest(),b.getSouth(),b.getEast(),b.getNorth()];
+    const params=new URLSearchParams({where:'1=1',geometry:extent.join(','),geometryType:'esriGeometryEnvelope',inSR:'4326',spatialRel:'esriSpatialRelIntersects',outFields:'OBJECTID',outSR:'4326',returnGeometry:'true',f:'geojson',resultRecordCount:'2000'});
+    const response=await fetch(endpoint+'?'+params);
+    if(!response.ok)throw Error('County road request failed');
+    const data=await response.json();
+    if(!data.features?.length)throw Error('No county road features');
+    roadLines=L.geoJSON(data,{style:{color:'#f9f5db',weight:2,opacity:.9,interactive:false}}).addTo(geoMap);
     if(districtBoundary)districtBoundary.bringToFront();
-  }catch(e){roadsLoaded=false;console.warn('Unlabeled road overlay unavailable',e)}
+  }catch(e){
+    console.warn('County road overlay failed; using transportation reference map',e);
+    // Reliable fallback with road labels, rather than leaving firefighters without any road reference.
+    roadLines=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,opacity:.9,attribution:'Roads &copy; Esri'}).addTo(geoMap);
+    if(districtBoundary)districtBoundary.bringToFront();
+  }
 }
 function geoDistance(a,b){
   const R=6371000,toRad=Math.PI/180,dLat=(b[0]-a[0])*toRad,dLon=(b[1]-a[1])*toRad;
