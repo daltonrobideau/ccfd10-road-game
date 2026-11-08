@@ -50,7 +50,7 @@ function showGeoMap(){
   if(active&&typeof L!=='undefined'){
     if(!geoMap){
       geoMap=L.map('geoMap',{zoomControl:true}).setView([45.91,-122.55],11);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; OpenStreetMap contributors'}).addTo(geoMap);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png',{maxZoom:20,attribution:'&copy; OpenStreetMap contributors &copy; CARTO'}).addTo(geoMap);
       geoMap.on('click',e=>answer([e.latlng.lat,e.latlng.lng]));
     }
     setTimeout(()=>geoMap.invalidateSize(),100);
